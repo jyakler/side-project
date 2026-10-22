@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Static export so Capacitor can bundle the UI into the native app (webDir: out).
+  output: "export",
 };
 
 export default nextConfig;
