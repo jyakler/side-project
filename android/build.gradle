@@ -1,0 +1,49 @@
+// Top-level build file where you can add configuration options common to all sub-projects/modules.
+
+buildscript {
+    
+    repositories {
+        google()
+        mavenCentral()
+    }
+    dependencies {
+        classpath 'com.android.tools.build:gradle:8.13.0'
+        classpath 'com.google.gms:google-services:4.4.4'
+
+        // NOTE: Do not place your application dependencies here; they belong
+        // in the individual module build.gradle files
+    }
+}
+
+apply from: "variables.gradle"
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+// Plugins request a JDK 21 toolchain; this machine only has JDK 25 (by policy, no extra JDK).
+// Compile with the installed JDK 25 while still emitting Java 21 bytecode.
+subprojects {
+    afterEvaluate { p ->
+        def toolchains = p.extensions.findByType(JavaToolchainService)
+        if (toolchains == null) return
+        def jdk = { spec -> spec.languageVersion = JavaLanguageVersion.of(25) }
+        // Kotlin's jvmToolchain(21) writes the shared java toolchain; point it at 25 instead.
+        p.extensions.findByType(JavaPluginExtension)?.toolchain?.languageVersion?.set(JavaLanguageVersion.of(25))
+        p.tasks.withType(JavaCompile).configureEach {
+            javaCompiler = toolchains.compilerFor(jdk)
+        }
+        p.tasks.matching { it.hasProperty("kotlinJavaToolchain") }.configureEach { task ->
+            task.kotlinJavaToolchain.toolchain.use(toolchains.launcherFor(jdk))
+            def jvmTarget = task.class.classLoader.loadClass("org.jetbrains.kotlin.gradle.dsl.JvmTarget")
+            task.compilerOptions.jvmTarget.set(jvmTarget.fromTarget("21"))
+        }
+    }
+}
+
+task clean(type: Delete) {
+    delete rootProject.buildDir
+}

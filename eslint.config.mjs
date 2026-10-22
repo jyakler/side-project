@@ -16,6 +16,8 @@ const eslintConfig = defineConfig([
     // .claude/worktrees holds duplicate checkouts of this app.
     ".claude/**",
     ".agents/**",
+    // Capacitor native project: generated assets and Gradle build output.
+    "android/**",
   ]),
 ]);
 

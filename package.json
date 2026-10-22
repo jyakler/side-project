@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "android:sync": "next build && node -e \"require('fs').rmSync('out/downloads',{recursive:true,force:true})\" && cap sync android"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
