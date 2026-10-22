@@ -44,6 +44,10 @@ type SearchState =
 
 const DEFAULT_RADIUS = 500;
 const REPOST_INTERVAL_MS = 5000;
+// Narrow-screen split between map and panel; the panel keeps room for header, search and start button.
+const MIN_MAP_HEIGHT = 160;
+const MIN_PANEL_HEIGHT = 220;
+const DIVIDER_KEY_STEP = 32;
 
 const STATUS_LABEL: Record<AlarmStatus, string> = {
   watching: "감시 중",
@@ -75,6 +79,35 @@ export function AlarmScreen() {
   const [alarms, setAlarms] = useState<AlarmStates>({});
   const [signal] = useState(createAlarmSignal);
   const stopWatchRef = useRef<(() => void) | null>(null);
+  const draftCardRef = useRef<HTMLDivElement>(null);
+  const mainRef = useRef<HTMLElement>(null);
+  const mapSectionRef = useRef<HTMLElement>(null);
+  const [mapHeight, setMapHeight] = useState<number | null>(null);
+
+  function resizeMap(height: number) {
+    const total = mainRef.current?.clientHeight ?? 0;
+    setMapHeight(Math.round(Math.max(MIN_MAP_HEIGHT, Math.min(height, total - MIN_PANEL_HEIGHT))));
+  }
+
+  function dragDivider(event: React.PointerEvent<HTMLDivElement>) {
+    if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    resizeMap(event.clientY - (mainRef.current?.getBoundingClientRect().top ?? 0));
+  }
+
+  function nudgeDivider(event: React.KeyboardEvent<HTMLDivElement>) {
+    const step = event.key === "ArrowUp" ? -DIVIDER_KEY_STEP : event.key === "ArrowDown" ? DIVIDER_KEY_STEP : 0;
+    if (!step) return;
+    event.preventDefault();
+    resizeMap((mapSectionRef.current?.offsetHeight ?? 0) + step);
+  }
+
+  // On narrow screens the panel may be scrolled past the draft card, hiding the add button.
+  const draftLat = draft?.lat;
+  const draftLng = draft?.lng;
+  useEffect(() => {
+    if (draftLat === undefined || draftLng === undefined) return;
+    draftCardRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, [draftLat, draftLng]);
 
   const running = runState !== "idle";
   const ringing = running ? destinations.find((d) => alarms[d.id]?.status === "ringing") : undefined;
@@ -249,8 +282,13 @@ export function AlarmScreen() {
   }
 
   return (
-    <main className="flex h-dvh flex-col md:flex-row">
-      <section className="relative h-[45dvh] shrink-0 md:h-auto md:flex-1" aria-label="지도">
+    <main ref={mainRef} className="flex h-dvh flex-col md:flex-row">
+      <section
+        ref={mapSectionRef}
+        className="relative h-(--map-height,45dvh) max-h-[calc(100%-220px)] min-h-40 shrink-0 md:h-auto md:max-h-none md:min-h-0 md:flex-1"
+        style={mapHeight === null ? undefined : ({ "--map-height": `${mapHeight}px` } as React.CSSProperties)}
+        aria-label="지도"
+      >
         <DestinationMap
           destinations={destinations}
           draft={draft}
@@ -270,7 +308,20 @@ export function AlarmScreen() {
         </Button>
       </section>
 
-      <aside className="flex flex-1 flex-col gap-4 overflow-y-auto p-4 md:w-96 md:flex-none">
+      <div
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="지도와 목적지 패널 크기 조절"
+        tabIndex={0}
+        className="flex h-5 shrink-0 cursor-row-resize touch-none items-center justify-center border-y bg-muted outline-none select-none focus-visible:ring-2 focus-visible:ring-ring md:hidden"
+        onPointerDown={(event) => event.currentTarget.setPointerCapture(event.pointerId)}
+        onPointerMove={dragDivider}
+        onKeyDown={nudgeDivider}
+      >
+        <span className="h-1 w-10 rounded-full bg-muted-foreground/40" />
+      </div>
+
+      <aside className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 *:shrink-0 md:w-96 md:flex-none">
         <header className="flex items-center justify-between gap-2">
           <h1 className="font-heading text-xl font-semibold">도착 알림</h1>
           <Badge variant={running ? "default" : "outline"}>
@@ -306,7 +357,7 @@ export function AlarmScreen() {
         </form>
 
         {draft ? (
-          <Card size="sm">
+          <Card ref={draftCardRef} size="sm" className="scroll-mt-4">
             <CardHeader>
               <CardTitle>{draft.name}</CardTitle>
               <CardDescription>이 위치를 확인하고 반경을 정한 뒤 추가하세요.</CardDescription>
